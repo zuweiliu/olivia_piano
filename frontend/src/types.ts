@@ -27,6 +27,12 @@ export interface Mistake {
   severity: "error" | "warning";
 }
 
+export interface BarTiming {
+  bar: number;
+  start_sec: number;
+  end_sec: number;
+}
+
 export interface AnalysisReport {
   tempo_bpm: number;
   total_ref_notes: number;
@@ -34,5 +40,6 @@ export interface AnalysisReport {
   accuracy: number;
   rhythm_accuracy: number;
   mistakes: Mistake[];
+  bar_timings: BarTiming[];
   summary: string;
 }

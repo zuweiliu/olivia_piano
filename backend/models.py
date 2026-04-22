@@ -29,6 +29,12 @@ class Mistake(BaseModel):
     severity: str
 
 
+class BarTiming(BaseModel):
+    bar: int
+    start_sec: float
+    end_sec: float
+
+
 class SheetParseResponse(BaseModel):
     ref_notes: List[RefNote]
     notes_count: int
@@ -43,4 +49,5 @@ class AnalysisReport(BaseModel):
     accuracy: float
     rhythm_accuracy: float
     mistakes: List[Mistake]
+    bar_timings: List[BarTiming] = []
     summary: str

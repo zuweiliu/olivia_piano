@@ -76,6 +76,8 @@ async def parse_sheet(file: UploadFile = File(...)):
             xml_b64 = base64.b64encode(xml_bytes).decode()
         else:
             ref_notes = parse_musicxml_file(tmp_path)
+            with open(tmp_path, "rb") as f:
+                xml_b64 = base64.b64encode(f.read()).decode()
 
         if not ref_notes:
             raise HTTPException(

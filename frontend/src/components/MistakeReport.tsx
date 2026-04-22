@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle, Info, Music2 } from "lucide-react";
 import { AnalysisReport, Mistake } from "../types";
+import SheetPlayer from "./SheetPlayer";
 
 interface Props {
   report: AnalysisReport;
   totalMeasures: number;
+  musicxmlB64?: string | null;
+  audioUrl?: string | null;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -58,9 +61,10 @@ function plainEnglish(m: Mistake): string {
   return m.detail;
 }
 
-function MeasureMap({ totalMeasures, mistakesByMeasure }: {
+function MeasureMap({ totalMeasures, mistakesByMeasure, playingBar }: {
   totalMeasures: number;
   mistakesByMeasure: Map<number, Mistake[]>;
+  playingBar?: number;
 }) {
   const [active, setActive] = useState<number | null>(null);
   const count = Math.max(totalMeasures, Math.max(...Array.from(mistakesByMeasure.keys()).filter(k => k > 0), 0));
@@ -75,6 +79,7 @@ function MeasureMap({ totalMeasures, mistakesByMeasure }: {
         {Array.from({ length: count }, (_, i) => i + 1).map((m) => {
           const hasMistake = mistakesByMeasure.has(m);
           const isActive = active === m;
+          const isPlaying = playingBar === m;
           return (
             <button
               key={m}
@@ -85,11 +90,13 @@ function MeasureMap({ totalMeasures, mistakesByMeasure }: {
                 }
               }}
               className={`flex h-8 w-8 items-center justify-center rounded text-xs font-bold transition-all
-                ${hasMistake
-                  ? isActive
-                    ? "bg-red-500 text-white ring-2 ring-red-300 scale-110"
-                    : "bg-red-100 text-red-700 hover:bg-red-200"
-                  : "bg-gray-100 text-gray-400"
+                ${isPlaying
+                  ? "bg-indigo-500 text-white ring-2 ring-indigo-300 scale-110 animate-pulse"
+                  : hasMistake
+                    ? isActive
+                      ? "bg-red-500 text-white ring-2 ring-red-300 scale-110"
+                      : "bg-red-100 text-red-700 hover:bg-red-200"
+                    : "bg-gray-100 text-gray-400"
                 }`}
             >
               {m}
@@ -115,9 +122,11 @@ function groupByMeasure(mistakes: Mistake[]): Map<number, Mistake[]> {
   return new Map([...map.entries()].sort((a, b) => a[0] - b[0]));
 }
 
-export default function MistakeReport({ report, totalMeasures }: Props) {
+export default function MistakeReport({ report, totalMeasures, musicxmlB64, audioUrl }: Props) {
   const [showGuide, setShowGuide] = useState(false);
   const [showWarnings, setShowWarnings] = useState(false);
+  const [playingBar, setPlayingBar] = useState(0);
+  const hasPlayer = !!musicxmlB64 && !!audioUrl && report.bar_timings?.length > 0;
   const errorCount = report.mistakes.filter((m) => m.severity === "error").length;
   const warnCount = report.mistakes.filter((m) => m.severity === "warning").length;
   const visibleMistakes = showWarnings ? report.mistakes : report.mistakes.filter((m) => m.severity === "error");
@@ -132,6 +141,17 @@ export default function MistakeReport({ report, totalMeasures }: Props) {
         </div>
         <h2 className="text-lg font-semibold text-gray-800">Analysis Results</h2>
       </div>
+
+      {hasPlayer && (
+        <div className="mb-5">
+          <SheetPlayer
+            musicxmlB64={musicxmlB64!}
+            audioUrl={audioUrl!}
+            barTimings={report.bar_timings}
+            onBarChange={setPlayingBar}
+          />
+        </div>
+      )}
 
       {isPerfect ? (
         <div className="flex flex-col items-center gap-3 py-8">
@@ -252,7 +272,7 @@ export default function MistakeReport({ report, totalMeasures }: Props) {
             </div>
           )}
 
-          <MeasureMap totalMeasures={totalMeasures} mistakesByMeasure={grouped} />
+          <MeasureMap totalMeasures={totalMeasures} mistakesByMeasure={grouped} playingBar={playingBar || undefined} />
 
           <div className="space-y-5">
             {[...grouped.entries()].map(([measure, mistakes]) => (

@@ -16,11 +16,12 @@ import type { AnalysisReport } from "../types";
 interface Props {
   refNotes: RefNote[] | null;
   onReport: (report: AnalysisReport) => void;
+  onAudioReady?: (url: string) => void;
 }
 
 const AUDIO_ACCEPT = ".wav,.mp3,.m4a,.aac,.ogg,.flac,.webm,.mp4,.aiff";
 
-export default function AudioInput({ refNotes, onReport }: Props) {
+export default function AudioInput({ refNotes, onReport, onAudioReady }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -66,7 +67,9 @@ export default function AudioInput({ refNotes, onReport }: Props) {
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: mimeType });
       setRecordedBlob(blob);
-      setRecordedUrl(URL.createObjectURL(blob));
+      const url = URL.createObjectURL(blob);
+      setRecordedUrl(url);
+      onAudioReady?.(url);
       stream.getTracks().forEach((t) => t.stop());
     };
 
@@ -181,7 +184,10 @@ export default function AudioInput({ refNotes, onReport }: Props) {
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) setAudioFile(f);
+                if (f) {
+                  setAudioFile(f);
+                  onAudioReady?.(URL.createObjectURL(f));
+                }
               }}
             />
             {audioFile ? (

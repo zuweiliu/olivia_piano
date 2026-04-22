@@ -6,9 +6,9 @@ expressive timing don't cause false mistakes.  Rhythm is checked loosely
 only for confidently matched note pairs.
 """
 
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 
-from models import RefNote, PlayedNote, Mistake, AnalysisReport
+from models import RefNote, PlayedNote, Mistake, AnalysisReport, BarTiming
 
 PITCH_WINDOW = 2        # semitones allowed when searching for a match
 OCTAVE_SEMITONES = 12  # exact octave error from OMR → still counts as correct
@@ -16,14 +16,27 @@ PITCH_CORRECT_TOLERANCE = 1  # basic-pitch ±1 semitone variance → not a real 
 MIN_MIDI = 52           # E3 — basic-pitch misses bass notes below this consistently
 
 
-def _estimate_tempo(ref_notes: List[RefNote], played_notes: List[PlayedNote]) -> float:
+def _estimate_tempo(
+    ref_notes: List[RefNote], played_notes: List[PlayedNote],
+    pairs: Optional[List[Tuple[int, int]]] = None,
+) -> float:
     if not ref_notes or not played_notes:
         return 60.0
-    total_beats = (
-        ref_notes[-1].offset_beats + ref_notes[-1].duration_beats
-        - ref_notes[0].offset_beats
-    )
-    total_sec = played_notes[-1].offset_sec - played_notes[0].onset_sec
+    # Use aligned pairs if available (ignores speech/noise)
+    if pairs and len(pairs) >= 2:
+        first_ri, first_pi = pairs[0]
+        last_ri, last_pi = pairs[-1]
+        total_beats = (
+            ref_notes[last_ri].offset_beats + ref_notes[last_ri].duration_beats
+            - ref_notes[first_ri].offset_beats
+        )
+        total_sec = played_notes[last_pi].offset_sec - played_notes[first_pi].onset_sec
+    else:
+        total_beats = (
+            ref_notes[-1].offset_beats + ref_notes[-1].duration_beats
+            - ref_notes[0].offset_beats
+        )
+        total_sec = played_notes[-1].offset_sec - played_notes[0].onset_sec
     if total_sec < 0.1 or total_beats <= 0:
         return 60.0
     return round((total_beats / total_sec) * 60.0, 1)
@@ -57,6 +70,44 @@ def _lcs_align(
     return pairs
 
 
+def _compute_bar_timings(
+    ref_notes: List[RefNote], beats_per_sec: float, played_notes: List[PlayedNote],
+    pairs: List[Tuple[int, int]],
+) -> List[BarTiming]:
+    """Build a list of {bar, start_sec, end_sec} from ref notes + tempo.
+    Uses the alignment pairs to find the true music start (ignoring speech/noise)."""
+    if not ref_notes or beats_per_sec <= 0:
+        return []
+
+    # Use the first aligned pair as the anchor point (skip speech/noise)
+    if pairs:
+        first_ri, first_pi = pairs[0]
+        ref_start = ref_notes[first_ri].offset_beats
+        played_start = played_notes[first_pi].onset_sec
+    else:
+        ref_start = ref_notes[0].offset_beats
+        played_start = played_notes[0].onset_sec if played_notes else 0.0
+    played_end = played_notes[-1].offset_sec if played_notes else 0.0
+
+    bar_offsets: Dict[int, float] = {}
+    for n in ref_notes:
+        if n.measure not in bar_offsets or n.offset_beats < bar_offsets[n.measure]:
+            bar_offsets[n.measure] = n.offset_beats
+
+    sorted_bars = sorted(bar_offsets.items(), key=lambda x: x[1])
+    timings: List[BarTiming] = []
+
+    for idx, (bar_num, offset_beats) in enumerate(sorted_bars):
+        start_sec = (offset_beats - ref_start) / beats_per_sec + played_start
+        if idx + 1 < len(sorted_bars):
+            end_sec = (sorted_bars[idx + 1][1] - ref_start) / beats_per_sec + played_start
+        else:
+            end_sec = played_end
+        timings.append(BarTiming(bar=bar_num, start_sec=round(start_sec, 3), end_sec=round(end_sec, 3)))
+
+    return timings
+
+
 def compare_notes(
     ref_notes: List[RefNote], played_notes: List[PlayedNote]
 ) -> Dict[str, Any]:
@@ -69,10 +120,9 @@ def compare_notes(
     if not ref_notes:
         return {"error": "No notes in detectable range after filtering."}
 
-    tempo_bpm = _estimate_tempo(ref_notes, played_notes)
-    beats_per_sec = tempo_bpm / 60.0
-
     pairs = _lcs_align(ref_notes, played_notes)
+    tempo_bpm = _estimate_tempo(ref_notes, played_notes, pairs)
+    beats_per_sec = tempo_bpm / 60.0
     matched_ref = {ri for ri, _ in pairs}
     matched_played = {pi for _, pi in pairs}
 
@@ -128,6 +178,8 @@ def compare_notes(
         else f"{int(accuracy * 100)}% note accuracy — {', '.join(parts)}"
     )
 
+    bar_timings = _compute_bar_timings(ref_notes, beats_per_sec, played_notes, pairs)
+
     return AnalysisReport(
         tempo_bpm=tempo_bpm,
         total_ref_notes=len(ref_notes),
@@ -135,5 +187,6 @@ def compare_notes(
         accuracy=round(accuracy, 3),
         rhythm_accuracy=round(rhythm_accuracy, 3),
         mistakes=mistakes,
+        bar_timings=bar_timings,
         summary=summary,
     ).model_dump()

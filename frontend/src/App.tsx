@@ -8,11 +8,14 @@ import { AnalysisReport, RefNote, SheetParseResult } from "./types";
 export default function App() {
   const [refNotes, setRefNotes] = useState<RefNote[] | null>(null);
   const [totalMeasures, setTotalMeasures] = useState<number>(0);
+  const [musicxmlB64, setMusicxmlB64] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [report, setReport] = useState<AnalysisReport | null>(null);
 
   function handleParsed(result: SheetParseResult) {
     setRefNotes(result.ref_notes);
     setTotalMeasures(result.measures);
+    setMusicxmlB64(result.musicxml_b64 ?? null);
     setReport(null);
   }
 
@@ -39,10 +42,15 @@ export default function App() {
 
       <main className="mx-auto max-w-2xl space-y-5 px-4 py-6 pb-16">
         <SheetUpload onParsed={handleParsed} />
-        <AudioInput refNotes={refNotes} onReport={handleReport} />
+        <AudioInput refNotes={refNotes} onReport={handleReport} onAudioReady={setAudioUrl} />
         {report && (
           <div id="results">
-            <MistakeReport report={report} totalMeasures={totalMeasures} />
+            <MistakeReport
+              report={report}
+              totalMeasures={totalMeasures}
+              musicxmlB64={musicxmlB64}
+              audioUrl={audioUrl}
+            />
           </div>
         )}
       </main>
