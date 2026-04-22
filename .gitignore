@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Audio / image uploads (large binary files, not source code)
+*.webm
+*.m4a
+*.mp3
+*.wav
+*.aac
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.mxl
+*.musicxml
+
+# PID files
+*.pid
+
+# Vite cache
+frontend/.vite/
